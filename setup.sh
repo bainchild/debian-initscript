@@ -1,7 +1,7 @@
 #!/bin/bash
 if [ $(whoami) = 'root' ]; then
 # basics
-apt-get install -y build-essential git lua5.4 lua5.1 lua5.1-dev >/dev/null
+apt-get install -y build-essential git lua5.1 lua5.1-dev >/dev/null
 # luarocks
 git clone https://github.com/luarocks/luarocks.git luarock >/dev/null
 cd luarock
