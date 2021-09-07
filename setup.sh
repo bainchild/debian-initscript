@@ -15,6 +15,11 @@ luarocks install http >/dev/null
 luarocks install luasocket >/dev/null
 luarocks install lua-cjson >/dev/null
 luarocks install lua-sdl2 >/dev/null
+luarocks install luasec --lua-version=5.1 >/dev/null
+luarocks install http --lua-version=5.1 >/dev/null
+luarocks install luasocket --lua-version=5.1 >/dev/null
+luarocks install lua-cjson --lua-version=5.1 >/dev/null
+luarocks install lua-sdl2 --lua-version=5.1 >/dev/null
 # done
 echo "Successfully Setup"
 exit 0
