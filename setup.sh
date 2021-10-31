@@ -1,7 +1,7 @@
 #!/bin/bash
 if [ $(whoami) = 'root' ]; then
 # basics
-apt-get install -y build-essential git lua5.1 lua5.1-dev openssl libssl-dev libsdl2-dev >/dev/null
+apt-get install -y build-essential git lua5.1 lua5.1-dev openssl libssl-dev libsdl2-dev wget >/dev/null
 # luarocks
 git clone https://github.com/luarocks/luarocks.git luarock >/dev/null
 cd luarock
@@ -21,7 +21,9 @@ luarocks install luasocket --lua-version=5.1 >/dev/null
 luarocks install lua-cjson --lua-version=5.1 >/dev/null
 luarocks install lua-sdl2 --lua-version=5.1 >/dev/null
 # done
-echo "Successfully Setup"
+echo "Successfully installed dependancies, running the script that does the rest"
+wget https://raw.githubusercontent.com/bainchild/debian-initscript/master/rest.lua
+lua5.1 ./rest.lua
 exit 0
 else
 echo "Setup script needs to be ran as root"
