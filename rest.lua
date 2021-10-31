@@ -1,3 +1,8 @@
+local __TESTING = true
+
+local function wait(s)
+        os.execute("sleep "..tostring(s))
+end
 local function eop(...)
    local M,n = pcall(...)
     if not M then
@@ -6,26 +11,43 @@ local function eop(...)
     return n
    end
 end
-local http = eop(require,"http.request")
+local function getresfrom(M)
+   if not __TESTING then
+      local fh = eop(io.popen,M)
+      --local b = fh:read("*a")
+      --log=log.."\n"..b
+      return fh:read("*a"), ({fh:close()})[1]
+   else
+      return "",0
+   end
+end
+local function exec(t)
+   local val,r = getresfrom(t)
+   if not r then
+     error("executing '"..t.."' errored with code "..tostring(r).." and error text of: '"..tostring(val).."'")
+   end
+   return r
+end
 
+local onion_service_name,http_port="testing",80
 
-local insta-onionsurl = "https://github.com/EffectiveAF/insta-onion/raw/master/insta-onion.sh"
+-- HAVE TASKS ON DIFFERENT LINES , PERCENT DONE IS BASED ON LINES
 local tasks = {
-  ["Get insta-onion script"] = function()
-    --local log = ""
-    local function getresfrom(M)
-        local fh = eop(io.popen,M)
-        --local b = fh:read("*a")
-        --log=log.."\n"..b
-        return fh:read("*a"), ({fh:close()})[3]
+ {"Check root permissions",function()
+    if __TESTING then
+        return "Running as root..."
     end
-    local function exec(t) 
-        local val,r = getresfrom(t)
-        if r ~= 0 then
-          error("executing '"..t.."' errored with code "..tostring(r).." and error text of: '"..tostring(val).."'")
-        end
-        return r
+    local res,c = getresfrom("whoami")
+    res=res:sub(1,#res-1)
+    if not c then
+        error("Running 'whoami' errored!")
+    elseif res ~= "root" then
+        error("Running as '"..res.."' , not root!")
+    else
+        return "Running as root..."
     end
+  end};
+  {"Get tor",function()
     exec("apt-get update &&  apt-get install -y curl gnupg2")
     exec("curl https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --import")
     exec("gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 |  apt-key add -")
@@ -40,51 +62,98 @@ local tasks = {
     exec('echo "HiddenServiceDir '..onion_dir..'" |  tee -a /etc/tor/torrc')
     exec('echo "HiddenServicePort 80 127.0.0.1:'..tostring(http_port)..'" |  tee -a /etc/tor/torrc')
     exec('service tor restart')
-    return "Check "..onion_dir.."/hostname"
-  end;
+    if (({getresfrom("ls -1 '"..onion_dir.."' | grep hostname")})[1]):gsub("\t",""):gsub(" ",""):gsub("\n","") ~= "" or __TESTING then
+        return "Onion url: "..({getresfrom("cat '"..onion_dir.."/hostname'")})[1]
+    else
+        return "Use 'cat \""..onion_dir.."/hostname\"' once tor is started to get the Onion url"
+    end
+  end};
+  {"Make autostart script",function()
+
+  end};
 }
 
 local function run_tasks()
     local p = io.write
     local pr = print
+    local check = "\27[32mCheckmark\27[0m"
+    local x = "\27[31mX\27[0m"
     local function pi(t)
        p("\27[1A")
        p("\27[K")
        pr(t)
     end
     local function handleTask(tn,t)
-        p("\27[1B")
+        p("\n")
         local doingdsh = true
-        if debug and debug.sethook then
+        if debug and debug.sethook and debug.getinfo then
             local linesuntil = 1--custom one here
             local linessofar = 0
+            local reallinessofar = 0
+            local spinnersequence_ = {
+                "-";"/";"|";"\\";"-";"/";"|";"\\";"-"
+            }
+            local spinnersequence = {}
+            for i,v in ipairs(spinnersequence_) do
+                table.insert(spinnersequence,"\27[35m"..tostring(v).."\27[0m")
+            end
+            local function map(n,a1,a2,b1,b2)
+                return (b1+((n-a1)*(b2-b1)/(a2-a1)))
+            end
+            local function limit(t,s)
+                if t <= s then
+                        return t 
+                elseif t%s == 0 then 
+                        return s
+                else
+                        return t%s
+                end
+            end
+            local function clamp(n,min,max)
+                if n <= max and n >= min then
+                        return n
+                elseif n < min then
+                        return min
+                elseif n > max then
+                        return max
+                end
+            end
+            local ginfo = debug.getinfo(t,"S")
+            local ldef,lldef = ginfo["linedefined"],ginfo["lastlinedefined"]
             debug.sethook(function()
                linessofar=linessofar+1
                if linessofar > linesuntil and doingdsh then
-                pi("[ "..spinnersequence[linessofar].." ] Running '"..tostring(tn).."'...")
+                reallinessofar=reallinessofar+1
+                pi("[ "..spinnersequence[limit(reallinessofar,#spinnersequence)].." ]["..tostring(clamp(map(ldef+(reallinessofar),ldef,lldef,0,10)-10,0,100)).."%] Running '"..tostring(tn).."'...")
                elseif not doingdsh then
                 debug.sethook()
                end
             end,"l")
+        else -- todo: add option if debug.sethook exists but not debug.getinfo
+                pi("[ ".."?".." ][?%] Running '"..tostring(tn).."'...")
         end
         local r,er = pcall(t)
         doingdsh=false
         if r then
             if er ~= nil then
-                if er:gsub(" ",""):gsub("\t","") ~= "" then
-                  pi("[ ".."Checkmark".." ] "..tostring(tn)..": "..tostring(er)) 
+                if er:gsub(" ",""):gsub("\t",""):gsub("\n","") ~= "" then
+                  pi("[ "..check.." ] "..tostring(tn)..": "..tostring(er)) 
                 else
-                  pi("[ ".."Checkmark".." ] "..tostring(tn))
+                  pi("[ "..check.." ] "..tostring(tn))
                 end
+            else
+                pi("[ "..check.." ] "..tostring(tn))
             end
             -- print a checkmark to console*
         else
             if er ~= nil then
-                if er:gsub(" ",""):gsub("\t","") ~= "" then
-                  pi("[ ".."X".." ] "..tostring(tn)..": "..tostring(er)) 
+                if er:gsub(" ",""):gsub("\t",""):gsub("\n","") ~= "" then
+                  pi("[ "..x.." ] "..tostring(tn)..": "..tostring(er)) 
                 else
-                  pi("[ ".."X".." ] "..tostring(tn))
+                  pi("[ "..x.." ] "..tostring(tn))
                 end
+            else
+                pi("[ "..x.." ] "..tostring(tn))
             end
             -- print a x to console*
         end
@@ -92,13 +161,12 @@ local function run_tasks()
         return r
     end
     local succeded=true
-    for i,v in pairs(tasks) do
-        if not handleTask(i,v) then
+    for i,v in ipairs(tasks) do
+        if not handleTask(v[1],v[2]) then
           succeded=false
           break
         end
     end
     return succeded
 end
-wait(2)
-run_tasks()
+if not run_tasks() then os.exit(1) end
