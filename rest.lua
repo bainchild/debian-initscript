@@ -33,9 +33,9 @@ local onion_service_name,http_port="testing",80
 
 -- HAVE TASKS ON DIFFERENT LINES , PERCENT DONE IS BASED ON LINES
 local tasks = {
- {"Check root permissions",function()
+   {"Check root permissions",function()
     if __TESTING then
-        return "Running as root..."
+        return "Skipped for testing"
     end
     local res,c = getresfrom("whoami")
     res=res:sub(1,#res-1)
@@ -48,6 +48,9 @@ local tasks = {
     end
   end};
   {"Get tor",function()
+    if __TESTING then 
+        return "Skipped for testing"
+    end
     exec("apt-get update &&  apt-get install -y curl gnupg2")
     exec("curl https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | gpg --import")
     exec("gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 |  apt-key add -")
@@ -68,8 +71,23 @@ local tasks = {
         return "Use 'cat \""..onion_dir.."/hostname\"' once tor is started to get the Onion url"
     end
   end};
-  {"Make autostart script",function()
-
+  {"Make autostart script for tor",function()
+        if __TESTING then return "Skipped for testing" end
+        local m = io.open("/etc/systemd/system/torboot.service","w+")
+        if not m then error("Error opening service file!") end
+        m:write([[
+[Unit]
+Description=Run tor on boot
+[Service]
+Type=simple
+ExecStart=/bin/tor
+Restart=on-failure
+RestartSec=10
+KillMode=process
+[Install]
+WantedBy=multi-user.target]])
+        m:close()
+        return "Successfully wrote /etc/systemd/system/torboot.service"
   end};
 }
 
@@ -83,6 +101,7 @@ local function run_tasks()
        p("\27[K")
        pr(t)
     end
+    p("\27[1;33mStarting "..tostring(#tasks).." tasks...\27[0m\n")
     local function handleTask(tn,t)
         p("\n")
         local doingdsh = true
