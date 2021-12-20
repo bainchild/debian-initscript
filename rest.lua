@@ -1,4 +1,4 @@
-local __TESTING = true
+local __TESTING = false
 
 local function wait(s)
         os.execute("sleep "..tostring(s))
